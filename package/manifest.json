@@ -1,0 +1,9 @@
+{
+    "id": "remarkable-chess",
+    "name": "Chess",
+    "loadsBackend": false,
+    "entry": "/qml/main.qml",
+    "canHaveMultipleFrontends": false,
+    "supportsScaling": true,
+    "aspectRatio": "original"
+}

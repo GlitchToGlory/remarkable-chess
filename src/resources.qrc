@@ -1,0 +1,19 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/chess.js</file>
+        <file>qml/icons/refresh.png</file>
+        <file>qml/pieces/wK.png</file>
+        <file>qml/pieces/wQ.png</file>
+        <file>qml/pieces/wR.png</file>
+        <file>qml/pieces/wB.png</file>
+        <file>qml/pieces/wN.png</file>
+        <file>qml/pieces/wP.png</file>
+        <file>qml/pieces/bK.png</file>
+        <file>qml/pieces/bQ.png</file>
+        <file>qml/pieces/bR.png</file>
+        <file>qml/pieces/bB.png</file>
+        <file>qml/pieces/bN.png</file>
+        <file>qml/pieces/bP.png</file>
+    </qresource>
+</RCC>

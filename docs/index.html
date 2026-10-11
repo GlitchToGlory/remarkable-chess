@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reMarkable Chess – web demo</title>
+<style>
+  :root { --bg:#fff; --fg:#000; --mut:#555; --line:#000; --dark:#b4b4b4; --light:#fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#111; --fg:#fff; --mut:#aaa; --line:#fff; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,sans-serif; display:flex; justify-content:center; }
+  main { width:min(100%,560px); padding:16px; }
+  h1 { font-size:1.2rem; margin:0 0 4px; }
+  p { color:var(--mut); font-size:.85rem; margin:0 0 12px; line-height:1.4; }
+  a { color:inherit; }
+  #status { text-align:center; font-size:1.2rem; font-weight:600; min-height:1.6em; margin:6px 0; }
+  .cap { display:flex; align-items:center; height:28px; }
+  .cap img { width:28px; height:28px; margin-right:-8px; }
+  .cap span { margin-left:14px; font-size:.95rem; }
+  #board { display:grid; grid-template-columns:repeat(8,1fr); border:3px solid var(--line); aspect-ratio:1; position:relative; user-select:none; }
+  .sq { position:relative; background:var(--light); cursor:pointer; }
+  .sq.dark { background:var(--dark); }
+  .sq img { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .sq.last::after, .sq.sel::after { content:""; position:absolute; inset:0; border:3px solid #000; pointer-events:none; }
+  .sq.sel::after { border-width:7px; }
+  .sq.check::before { content:""; position:absolute; inset:3%; border:5px solid #000; border-radius:50%; }
+  .dot { position:absolute; left:35%; top:35%; width:30%; height:30%; border-radius:50%; background:#000; pointer-events:none; }
+  .ring { position:absolute; inset:2%; border:4px solid #000; border-radius:50%; pointer-events:none; }
+  .coord { position:absolute; font-size:11px; color:#666; pointer-events:none; }
+  .dark .coord { color:#fff; }
+  .rank { left:3px; top:2px; } .file { right:3px; bottom:1px; }
+  #moves[hidden] { display:none; }
+  #moves { min-height:3em; font-size:.95rem; margin:8px 0; line-height:1.5; }
+  .row { display:flex; gap:8px; margin:8px 0; }
+  button, select { flex:1; font-size:1rem; padding:10px 0; border:3px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); cursor:pointer; }
+  select { padding:8px; }
+  button:disabled { opacity:.4; cursor:default; }
+  button:active:not(:disabled) { filter:invert(1); }
+  #promo { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.75); }
+  #promo div { background:#fff; border:3px solid #000; border-radius:12px; padding:10px; display:flex; gap:8px; }
+  #promo img { width:64px; height:64px; border:2px solid #000; border-radius:8px; cursor:pointer; background:#fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>reMarkable Chess</h1>
+  <p>Web demo of the same engine (<code>chess.js</code>) that runs on the reMarkable Paper Pure: full rules and a computer
+     opponent with three levels. <a href="https://github.com/GlitchToGlory/remarkable-chess">Source on GitHub</a></p>
+  <div class="row">
+    <select id="mode"><option value="ai">vs Computer</option><option value="2p">Two players</option></select>
+    <select id="side"><option value="w">Play White</option><option value="b">Play Black</option></select>
+    <select id="level"><option value="1">Easy</option><option value="2" selected>Medium</option><option value="3">Hard</option></select>
+  </div>
+  <div id="status"></div>
+  <div class="cap" id="capTop"></div>
+  <div id="board"><div id="promo"><div></div></div></div>
+  <div class="cap" id="capBottom"></div>
+  <div id="moves" hidden></div>
+  <div class="row">
+    <button id="new">New game</button><button id="undo">Undo</button><button id="flip">Flip board</button><button id="movesBtn">Moves: Off</button>
+  </div>
+</main>
+<script>
+fetch("chess.js").then(r => r.text()).then(src => {
+  const C = new Function(src.replace(/^\.pragma library.*$/m, "") +
+    "; return { newGame, tap, promote, aiMove, undo, flip, canUndo, isAiTurn, squareAt, isDark, pieceImage," +
+    " statusText, movesText, captured, materialDiff, FILES };")();
+  const $ = id => document.getElementById(id);
+  const boardEl = $("board"), promoEl = $("promo");
+  let g, timer = null;
+
+  const cells = [];
+  for (let vi = 0; vi < 64; vi++) {
+    const d = document.createElement("div");
+    d.className = "sq";
+    d.onclick = () => set(C.tap(g, C.squareAt(g, vi)));
+    boardEl.insertBefore(d, promoEl);
+    cells.push(d);
+  }
+
+  function set(n) {
+    g = n;
+    render();
+    clearTimeout(timer);
+    if (C.isAiTurn(g)) timer = setTimeout(() => set(C.aiMove(g)), 60);
+  }
+
+  function capRow(el, side) {
+    const lead = (side === "w" ? 1 : -1) * C.materialDiff(g);
+    el.innerHTML = C.captured(g, side === "w" ? "b" : "w").map(p => `<img src="${C.pieceImage(p)}" alt="">`).join("") +
+      (lead > 0 ? `<span>+${lead}</span>` : "");
+  }
+
+  function render() {
+    for (let vi = 0; vi < 64; vi++) {
+      const s = C.squareAt(g, vi), p = g.pos.b[s], d = cells[vi], cl = ["sq"];
+      if (C.isDark(s)) cl.push("dark");
+      if (g.sel === s) cl.push("sel");
+      else if (g.last && (g.last.f === s || g.last.t === s)) cl.push("last");
+      if (g.check && g.pos.kings[g.pos.turn] === s) cl.push("check");
+      d.className = cl.join(" ");
+      let h = p ? `<img src="${C.pieceImage(p)}" alt="${p}">` : "";
+      if (g.hints && g.targets.indexOf(s) >= 0) h += p ? '<div class="ring"></div>' : '<div class="dot"></div>';
+      if (vi % 8 === 0) h += `<span class="coord rank">${8 - (s >> 3)}</span>`;
+      if (vi >= 56) h += `<span class="coord file">${C.FILES[s & 7]}</span>`;
+      d.innerHTML = h;
+    }
+    $("status").textContent = C.statusText(g);
+    $("moves").textContent = C.movesText(g) || "Moves will appear here.";
+    capRow($("capTop"), g.flipped ? "w" : "b");
+    capRow($("capBottom"), g.flipped ? "b" : "w");
+    $("undo").disabled = !C.canUndo(g) || C.isAiTurn(g);
+    $("side").disabled = $("level").disabled = $("mode").value !== "ai";
+    if (g.promo) {
+      const w = g.pos.turn === "w";
+      promoEl.firstElementChild.innerHTML = ["q", "r", "b", "n"].map(t =>
+        `<img data-t="${t}" src="${C.pieceImage(w ? t.toUpperCase() : t)}" alt="${t}">`).join("");
+      promoEl.style.display = "flex";
+    } else promoEl.style.display = "none";
+  }
+
+  promoEl.onclick = e => { e.stopPropagation(); set(C.promote(g, e.target.dataset.t || "")); };
+  $("new").onclick = () => set(C.newGame({ mode: $("mode").value, human: $("side").value, level: +$("level").value }));
+  $("undo").onclick = () => set(C.undo(g));
+  $("flip").onclick = () => set(C.flip(g));
+  $("mode").onchange = render;
+  $("movesBtn").onclick = () => {
+    const m = $("moves"); m.hidden = !m.hidden;
+    $("movesBtn").textContent = m.hidden ? "Moves: Off" : "Moves: On";
+  };
+  set(C.newGame({ mode: "ai", human: "w", level: 2 }));
+}).catch(() => { document.getElementById("status").textContent = "Could not load chess.js"; });
+</script>
+</body>
+</html>
